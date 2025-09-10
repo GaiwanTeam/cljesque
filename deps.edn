@@ -1,0 +1,2 @@
+{:deps
+ {net.greghaines/jesque {:mvn/version "2.2.0"}}}
