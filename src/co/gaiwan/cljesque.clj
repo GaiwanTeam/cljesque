@@ -10,8 +10,12 @@
   (:import
    (net.greghaines.jesque Config ConfigBuilder Job)
    (net.greghaines.jesque.client Client ClientPoolImpl)
+   (net.greghaines.jesque.meta QueueInfo)
+   (net.greghaines.jesque.meta.dao QueueInfoDAO)
+   (net.greghaines.jesque.meta.dao.impl QueueInfoDAORedisImpl)
    (net.greghaines.jesque.utils PoolUtils)
-   (net.greghaines.jesque.worker JobFactory Worker WorkerImpl)))
+   (net.greghaines.jesque.worker JobFactory Worker WorkerImpl)
+   (redis.clients.jedis JedisPool)))
 
 (set! *warn-on-reflection* true)
 
@@ -20,15 +24,24 @@
             (.withHost redis-host)
             (.withPort redis-port))))
 
-(defn client
-  "Create a Jesque client with a Redis connection pool"
-  ^Client [config]
-  (ClientPoolImpl. config (PoolUtils/createJedisPool config)))
+(defn jedis-pool ^JedisPool [^Config config]
+  (PoolUtils/createJedisPool config))
 
-(defn stop-client
+(defn connect
+  "Create a Jesque client with a Redis connection pool"
+  ([]
+   (connect nil))
+  ([{:keys [host port] :or {host "127.0.0.1" port 6379}}]
+   (let [config (make-config host port)
+         pool   (jedis-pool config)]
+     {:config config
+      :pool   pool
+      :client (ClientPoolImpl. config pool)})))
+
+(defn end-client
   "Stop the client, close connections"
-  [^Client client]
-  (.end client))
+  [{:keys [client]}]
+  (.end ^Client client))
 
 (defn job
   "Create a new job, the first argument is the fully qualified name of a Clojure
@@ -38,13 +51,13 @@
 
 (defn enqueue
   "Enqueue a new job"
-  [^Client client queue var-name & args]
-  (.enqueue client queue (job var-name args)))
+  [{:keys [client]} queue var-name & args]
+  (.enqueue ^Client client queue (job var-name args)))
 
 (defn- materialize-job ^Callable [injection-map ^Job job]
   (let [var-name (symbol (.getClassName job))
-        args (vec (.getArgs job))
-        job-fn (some-> (requiring-resolve var-name) deref)]
+        args     (vec (.getArgs job))
+        job-fn   (some-> (requiring-resolve var-name) deref)]
     (if-not job-fn
       (log/error :jesque/job-var-not-found {:var-name var-name})
       ;; Return a zero-argument Callable
@@ -52,7 +65,7 @@
          (apply job-fn injection-map args)
          (catch Throwable e
            (log/error :jesque/exception-in-job {:var-name var-name
-                                                :args args}
+                                                :args     args}
                       :exception e))))))
 
 (defn injecting-job-factory
@@ -67,12 +80,27 @@
 (defn worker
   "Create a new Jedis worker instance"
   ^Worker [config queues injections]
-  (WorkerImpl. config queues (injecting-job-factory injections)))
+  (WorkerImpl. (:config config config) queues (injecting-job-factory injections)))
 
 (defn run-worker!
   "Create a new worker and run it on a new thread. Returns [worker thread]"
   [config queues injections]
-  (let [worker (worker config queues injections)
+  (let [config (:config config config)
+        worker (worker config queues injections)
         thread (doto (Thread. worker)
                  (.start))]
     [worker thread]))
+
+(defn queue-info-dao ^QueueInfoDAO [{:keys [config pool]}]
+  (QueueInfoDAORedisImpl. config pool))
+
+(defn queue-infos [opts]
+  (let [dao (queue-info-dao opts)]
+    (for [^QueueInfo info (.getQueueInfos dao)
+          :let [name (.getName info)
+                size (.getSize info)]]
+      {:name name
+       :size size
+       :jobs (for [^Job job (.getJobs (.getQueueInfo dao name 0 size))]
+               {:var (.getClassName job)
+                :args (seq (.getArgs job))})})))
