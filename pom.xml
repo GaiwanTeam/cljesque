@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>co.gaiwan</groupId>
   <artifactId>cljesque</artifactId>
-  <version>0.2.4</version>
+  <version>0.3.7</version>
   <name>cljesque</name>
   <description>Clojure wrapper for Jesque</description>
   <url>https://github.com//cljesque</url>
@@ -25,7 +25,7 @@
     <url>https://github.com//cljesque</url>
     <connection>scm:git:git://github.com//cljesque.git</connection>
     <developerConnection>scm:git:ssh://git@github.com//cljesque.git</developerConnection>
-    <tag>7dd6373eea42620e0b4daea79e5a97e7e978fff0</tag>
+    <tag>ba3618c1dc43d4eba8f1a6a1c4154cdd7365132d</tag>
   </scm>
   <dependencies>
     <dependency>
@@ -63,7 +63,7 @@
         <configuration>
           <archive>
             <manifestEntries>
-              <git-revision>7dd6373eea42620e0b4daea79e5a97e7e978fff0</git-revision>
+              <git-revision>ba3618c1dc43d4eba8f1a6a1c4154cdd7365132d</git-revision>
             </manifestEntries>
           </archive>
         </configuration>
