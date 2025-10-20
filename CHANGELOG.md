@@ -1,3 +1,11 @@
+# Unreleased
+
+## Added
+
+## Fixed
+
+## Changed
+
 # 0.4.11 (2025-10-20 / 14da89a)
 
 ## Fixed
