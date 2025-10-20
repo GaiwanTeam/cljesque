@@ -1,10 +1,10 @@
 # Unreleased
 
-## Added
-
 ## Fixed
 
-## Changed
+- Handle passing clojure maps as arguments, they get converted back from java
+  maps, and keywords get restored
+- When inspecting the queue contents, return the var as a symbol, not a string
 
 # 0.3.7 (2025-09-10 / 9ade774)
 

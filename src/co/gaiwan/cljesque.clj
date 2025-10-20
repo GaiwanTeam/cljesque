@@ -6,7 +6,8 @@
   followed by any arguments that were provided when the job was enqueued.
   "
   (:require
-   [io.pedestal.log :as log])
+   [io.pedestal.log :as log]
+   [clojure.walk :as walk])
   (:import
    (net.greghaines.jesque Config ConfigBuilder Job)
    (net.greghaines.jesque.client Client ClientPoolImpl)
@@ -54,6 +55,17 @@
   [{:keys [client]} queue var-name & args]
   (.enqueue ^Client client queue (job var-name args)))
 
+(defn- unmunge-arg [o]
+  (if (and (instance? java.util.Map o) (not (map? o)))
+    (into {} (map (fn [[k v]]
+                    [
+                     (if (and (string? k)
+                              (.startsWith ^String k ":"))
+                       (keyword (subs k 1))
+                       k)
+                     v])) o)
+    o))
+
 (defn- materialize-job ^Callable [injection-map ^Job job]
   (let [var-name (symbol (.getClassName job))
         args     (vec (.getArgs job))
@@ -62,7 +74,7 @@
       (log/error :jesque/job-var-not-found {:var-name var-name})
       ;; Return a zero-argument Callable
       #(try
-         (apply job-fn injection-map args)
+         (apply job-fn injection-map (walk/postwalk unmunge-arg args))
          (catch Throwable e
            (log/error :jesque/exception-in-job {:var-name var-name
                                                 :args     args}
@@ -102,5 +114,5 @@
       {:name name
        :size size
        :jobs (for [^Job job (.getJobs (.getQueueInfo dao name 0 size))]
-               {:var (.getClassName job)
-                :args (seq (.getArgs job))})})))
+               {:var (symbol (.getClassName job))
+                :args (walk/postwalk unmunge-arg (seq (.getArgs job)))})})))

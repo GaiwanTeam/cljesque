@@ -52,7 +52,7 @@ Since Jesqueue is compatible with Resqueue, you can use
 ;; Set up Redis connection pool and Jesque client
 (def client (q/connect))
 ;; OR
-(def client (q/connect {:host "127.0.0.1" :port 6379))
+(def client (q/connect {:host "127.0.0.1" :port 6379}))
 
 ;; "Job" function
 (defn test-fn [inj arg1 arg2]
@@ -68,6 +68,7 @@ Since Jesqueue is compatible with Resqueue, you can use
 
 ;; Check what's in the queue(s)
 (q/queue-infos client)
+```
 
 <!-- license -->
 ## License
