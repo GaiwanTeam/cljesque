@@ -2,9 +2,8 @@
 
 ## Added
 
-## Fixed
-
-## Changed
+- Added convenience functions: `workers-info`, `unregister-worker`
+- Add middleware capabilities
 
 # 0.4.11 (2025-10-20 / 14da89a)
 

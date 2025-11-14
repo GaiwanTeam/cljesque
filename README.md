@@ -70,6 +70,23 @@ Since Jesqueue is compatible with Resqueue, you can use
 (q/queue-infos client)
 ```
 
+## Middleware
+
+When calling `q/connect` you can pass a collection of middleware (wrapping)
+functions, these will get wrapped on the worker side around the job function.
+Useful for things like retries, error handling, etc.
+
+Access the current job info in middleware through `q/*job*`.
+
+## Cleaning up
+
+Workers register themselves in Redis, it is your responsibility to unregister
+them before exiting by calling `.end` on the worker, however if e.g. a process
+crashes these references can hang around.
+
+You can use `workers-info` to see which workers are registered, and then e.g.
+remove the ones with the same hostname but a different PID.
+
 <!-- license -->
 ## License
 

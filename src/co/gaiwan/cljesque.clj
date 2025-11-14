@@ -6,19 +6,24 @@
   followed by any arguments that were provided when the job was enqueued.
   "
   (:require
-   [io.pedestal.log :as log]
-   [clojure.walk :as walk])
+   [clojure.walk :as walk]
+   [io.pedestal.log :as log])
   (:import
    (net.greghaines.jesque Config ConfigBuilder Job)
    (net.greghaines.jesque.client Client ClientPoolImpl)
    (net.greghaines.jesque.meta QueueInfo)
-   (net.greghaines.jesque.meta.dao QueueInfoDAO)
-   (net.greghaines.jesque.meta.dao.impl QueueInfoDAORedisImpl)
+   (net.greghaines.jesque.meta.dao QueueInfoDAO WorkerInfoDAO)
+   (net.greghaines.jesque.meta.dao.impl QueueInfoDAORedisImpl WorkerInfoDAORedisImpl)
    (net.greghaines.jesque.utils PoolUtils)
    (net.greghaines.jesque.worker JobFactory Worker WorkerImpl)
    (redis.clients.jedis JedisPool)))
 
 (set! *warn-on-reflection* true)
+
+(def ^:dynamic *job*
+  "Bound to the job info map (:name, :args) during execution (and middleware execution),
+  mainly so Middleware can inspect what they are wrapping."
+  nil)
 
 (defn make-config ^Config [redis-host redis-port]
   (.build (doto (ConfigBuilder.)
@@ -32,12 +37,14 @@
   "Create a Jesque client with a Redis connection pool"
   ([]
    (connect nil))
-  ([{:keys [host port] :or {host "127.0.0.1" port 6379}}]
+  ([{:keys [host port middleware] :or {host "127.0.0.1" port 6379}}]
    (let [config (make-config host port)
          pool   (jedis-pool config)]
-     {:config config
-      :pool   pool
-      :client (ClientPoolImpl. config pool)})))
+     (cond-> {:config     config
+              :pool       pool
+              :client     (ClientPoolImpl. config pool)}
+       middleware
+       (assoc :middleware middleware)))))
 
 (defn end-client
   "Stop the client, close connections"
@@ -53,52 +60,71 @@
 (defn enqueue
   "Enqueue a new job"
   [{:keys [client]} queue var-name & args]
+  (log/debug :job/enqueing {:var-name var-name :args args})
   (.enqueue ^Client client queue (job var-name args)))
 
 (defn- unmunge-arg [o]
-  (if (and (instance? java.util.Map o) (not (map? o)))
+  (cond
+    (instance? java.util.ArrayList o)
+    (map unmunge-arg o)
+
+    (and (instance? java.util.Map o) (not (map? o)))
     (into {} (map (fn [[k v]]
                     [
                      (if (and (string? k)
                               (.startsWith ^String k ":"))
                        (keyword (subs k 1))
                        k)
-                     v])) o)
+                     (unmunge-arg v)])) o)
+
+    :else
     o))
 
-(defn- materialize-job ^Callable [injection-map ^Job job]
-  (let [var-name (symbol (.getClassName job))
-        args     (vec (.getArgs job))
-        job-fn   (some-> (requiring-resolve var-name) deref)]
+(defn job-info [^Job job]
+  {:name (symbol (.getClassName job))
+   :args (walk/postwalk unmunge-arg (vec (.getArgs job)))})
+
+(defn- materialize-job ^Callable [injection-map info]
+  (let [job-fn (some-> info :name requiring-resolve deref)]
     (if-not job-fn
-      (log/error :jesque/job-var-not-found {:var-name var-name})
+      (log/error :jesque/job-var-not-found {:var-name (:name info)})
       ;; Return a zero-argument Callable
       #(try
-         (apply job-fn injection-map (walk/postwalk unmunge-arg args))
+         (log/debug :job/starting info)
+         (apply job-fn injection-map (:args info))
          (catch Throwable e
-           (log/error :jesque/exception-in-job {:var-name var-name
-                                                :args     args}
-                      :exception e))))))
+           (log/error :jesque/exception-in-job info :exception e))))))
 
-(defn injecting-job-factory
+(defn- injecting-job-factory
   "Jedis Job factory. The job's \"className\" is treated as the fully qualified
   name of a clojure var/function. That functions will get called with the map of
   injections first, followed by the job arguments."
-  ^JobFactory [injection-map]
+  ^JobFactory [injection-map middleware]
   (reify JobFactory
     (materializeJob [_ ^Job job]
-      (materialize-job injection-map job))))
+      (println "Got job" job)
+      (def jjj job)
+      (let [info (job-info jjj)
+            job-fn (reduce
+                    (fn [job wrap]
+                      (wrap job))
+                    (materialize-job injection-map info)
+                    middleware)]
+        #(binding [*job* info]
+           (println "before")
+           (job-fn)
+           (println "after"))))))
 
 (defn worker
   "Create a new Jedis worker instance"
   ^Worker [config queues injections]
-  (WorkerImpl. (:config config config) queues (injecting-job-factory injections)))
+  (let [jesque-config (:config config config)]
+    (WorkerImpl. jesque-config queues (injecting-job-factory injections (:middleware config)))))
 
 (defn run-worker!
   "Create a new worker and run it on a new thread. Returns [worker thread]"
   [config queues injections]
-  (let [config (:config config config)
-        worker (worker config queues injections)
+  (let [worker (worker config queues injections)
         thread (doto (Thread. worker)
                  (.start))]
     [worker thread]))
@@ -116,3 +142,15 @@
        :jobs (for [^Job job (.getJobs (.getQueueInfo dao name 0 size))]
                {:var (symbol (.getClassName job))
                 :args (walk/postwalk unmunge-arg (seq (.getArgs job)))})})))
+
+(defn worker-info-dao ^WorkerInfoDAO [{:keys [config pool]}]
+  (WorkerInfoDAORedisImpl. config pool))
+
+(defn workers-info
+  [client]
+  (map bean (.getAllWorkers (worker-info-dao client))))
+
+(defn unregister-worker
+  "Unregister worker from Redis"
+  [client worker-name]
+  (.removeWorker (worker-info-dao client) worker-name))
