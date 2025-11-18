@@ -18,13 +18,13 @@ Clojure wrapper for Jesque
 To use the latest release, add the following to your `deps.edn` ([Clojure CLI](https://clojure.org/guides/deps_and_cli))
 
 ```
-co.gaiwan/cljesque {:mvn/version "0.7.22"}
+co.gaiwan/cljesque {:mvn/version "0.8.25"}
 ```
 
 or add the following to your `project.clj` ([Leiningen](https://leiningen.org/))
 
 ```
-[co.gaiwan/cljesque "0.7.22"]
+[co.gaiwan/cljesque "0.8.25"]
 ```
 <!-- /installation -->
 
