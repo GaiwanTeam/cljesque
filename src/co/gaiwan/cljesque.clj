@@ -102,9 +102,7 @@
   ^JobFactory [injection-map middleware]
   (reify JobFactory
     (materializeJob [_ ^Job job]
-      (println "Got job" job)
-      (def jjj job)
-      (let [info (job-info jjj)
+      (let [info (job-info job)
             job-fn (reduce
                     (fn [job wrap]
                       (wrap job))
@@ -143,7 +141,7 @@
                {:var (symbol (.getClassName job))
                 :args (walk/postwalk unmunge-arg (seq (.getArgs job)))})})))
 
-(defn worker-info-dao ^WorkerInfoDAO [{:keys [config pool]}]
+(defn- worker-info-dao ^WorkerInfoDAO [{:keys [config pool]}]
   (WorkerInfoDAORedisImpl. config pool))
 
 (defn workers-info
