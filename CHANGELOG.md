@@ -1,4 +1,4 @@
-# Unreleased
+# 0.6.19 (2025-11-18 / ecc1426)
 
 ## Changed
 
