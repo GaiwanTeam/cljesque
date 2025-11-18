@@ -1,4 +1,4 @@
-# Unreleased
+# 0.7.22 (2025-11-18 / f622ad5)
 
 ## Changed
 
