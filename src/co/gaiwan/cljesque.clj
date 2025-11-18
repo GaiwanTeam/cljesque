@@ -84,16 +84,17 @@
   {:name (symbol (.getClassName job))
    :args (walk/postwalk unmunge-arg (vec (.getArgs job)))})
 
-(defn- materialize-job ^Callable [injection-map info]
+(defn- materialize-job ^Callable [injection-map info middleware]
   (let [job-fn (some-> info :name requiring-resolve deref)]
     (if-not job-fn
       (log/error :jesque/job-var-not-found {:var-name (:name info)})
       ;; Return a zero-argument Callable
       #(try
          (log/debug :job/starting info)
-         (apply job-fn injection-map (:args info))
+         (apply (reduce (fn [j m] (m j)) job-fn middleware) injection-map (:args info))
          (catch Throwable e
-           (log/error :jesque/exception-in-job info :exception e))))))
+           (alter-var-root #'*e (constantly e))
+           (log/error :jesque/exception-in-job info :exception e :ex-info (ex-info e)))))))
 
 (defn- injecting-job-factory
   "Jedis Job factory. The job's \"className\" is treated as the fully qualified
@@ -102,12 +103,8 @@
   ^JobFactory [injection-map middleware]
   (reify JobFactory
     (materializeJob [_ ^Job job]
-      (let [info (job-info job)
-            job-fn (reduce
-                    (fn [job wrap]
-                      (wrap job))
-                    (materialize-job injection-map info)
-                    middleware)]
+      (let [info   (job-info job)
+            job-fn (materialize-job injection-map info middleware)]
         #(binding [*job* info]
            (job-fn))))))
 
