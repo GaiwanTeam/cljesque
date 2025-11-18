@@ -109,9 +109,7 @@
                     (materialize-job injection-map info)
                     middleware)]
         #(binding [*job* info]
-           (println "before")
-           (job-fn)
-           (println "after"))))))
+           (job-fn))))))
 
 (defn worker
   "Create a new Jedis worker instance"

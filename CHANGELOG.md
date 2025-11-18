@@ -1,10 +1,8 @@
 # Unreleased
 
-## Added
-
-## Fixed
-
 ## Changed
+
+- remove debug code
 
 # 0.6.19 (2025-11-18 / ecc1426)
 
