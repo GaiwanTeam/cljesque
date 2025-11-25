@@ -94,7 +94,7 @@
          (apply (reduce (fn [j m] (m j)) job-fn middleware) injection-map (:args info))
          (catch Throwable e
            (alter-var-root #'*e (constantly e))
-           (log/error :jesque/exception-in-job info :exception e :ex-info (ex-info e)))))))
+           (log/error :jesque/exception-in-job info :exception e :ex-info (ex-data e)))))))
 
 (defn- injecting-job-factory
   "Jedis Job factory. The job's \"className\" is treated as the fully qualified

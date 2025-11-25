@@ -1,10 +1,8 @@
 # Unreleased
 
-## Added
-
 ## Fixed
 
-## Changed
+- Fix broken error handling
 
 # 0.8.25 (2025-11-18 / 48e4a4f)
 
