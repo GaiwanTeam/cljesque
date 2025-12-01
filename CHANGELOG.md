@@ -1,10 +1,8 @@
 # Unreleased
 
-## Added
-
 ## Fixed
 
-## Changed
+- Rethrow exceptions
 
 # 0.9.28 (2025-11-25 / 8339af2)
 
