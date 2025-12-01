@@ -1,3 +1,11 @@
+# Unreleased
+
+## Added
+
+## Fixed
+
+## Changed
+
 # 0.10.32 (2025-12-01 / b5c09d0)
 
 ## Fixed
